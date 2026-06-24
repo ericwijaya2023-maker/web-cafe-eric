@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { orders, orderItems, menu, users } from '@/drizzle/schema';
