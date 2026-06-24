@@ -100,7 +100,7 @@ export default function AdminMenuPage() {
       <h1>☕ ERIC.CO</h1><p class="sub">Katalog Menu</p><div class="grid">
       ${items.map(item => `
         <div class="card">
-          ${item.gambar ? `<img src="${baseUrl}${item.gambar}" alt="${item.nama}" />` : '<div style="height:120px;background:#F0E6DC;border-radius:8px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;font-size:40px">☕</div>'}
+          ${item.gambar ? `<img src="${item.gambar.startsWith('http') ? item.gambar : baseUrl + item.gambar}" alt="${item.nama}" />` : '<div style="height:120px;background:#F0E6DC;border-radius:8px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;font-size:40px">☕</div>'}
           <h3>${item.nama}</h3>
           <div class="cat">${item.kategori}</div>
           <p style="font-size:13px;color:#7A6856;margin:4px 0">${item.deskripsi || ''}</p>
