@@ -1,179 +1,230 @@
 'use client';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
+import QRScanner from '@/components/QRScanner';
+import MenuCard from '@/components/MenuCard';
+import Modal from '@/components/Modal';
 
-export default function HomePage() {
+export default function CustomerPage() {
   const [menu, setMenu] = useState([]);
+  const [kategori, setKategori] = useState('semua');
+  const [cart, setCart] = useState([]);
+  const [showCart, setShowCart] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [noMeja, setNoMeja] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = 'ERIC.CO - Premium Cafe Experience';
-    fetch('/api/menu').then(r => r.json()).then(d => {
-      if (d.success) setMenu(d.data.slice(0, 4));
-    }).catch(() => {});
+    fetchMenu();
   }, []);
 
+  const fetchMenu = async () => {
+    try {
+      const res = await fetch('/api/menu');
+      const data = await res.json();
+      if (data.success) setMenu(data.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredMenu = kategori === 'semua' ? menu : menu.filter(m => m.kategori === kategori);
+  const countByKategori = { makanan: menu.filter(m => m.kategori === 'makanan').length, minuman: menu.filter(m => m.kategori === 'minuman').length };
+
+  const addToCart = (item) => {
+    setCart(prev => {
+      const exist = prev.find(c => c.id === item.id);
+      if (exist) return prev.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c);
+      return [...prev, { ...item, qty: 1 }];
+    });
+  };
+
+  const removeFromCart = (id) => {
+    setCart(prev => {
+      const exist = prev.find(c => c.id === id);
+      if (exist.qty === 1) return prev.filter(c => c.id !== id);
+      return prev.map(c => c.id === id ? { ...c, qty: c.qty - 1 } : c);
+    });
+  };
+
+  const totalCart = cart.reduce((sum, item) => sum + item.harga * item.qty, 0);
+
+  const generateQR = async (meja) => {
+    try {
+      const url = `${window.location.origin}/customer/pesan?meja=${meja}`;
+      const dataUrl = await QRCode.toDataURL(url, { width: 240, margin: 2, color: { dark: '#8B5E3C', light: '#FFF8F0' } });
+      setQrDataUrl(dataUrl);
+      setNoMeja(meja);
+      setShowQR(true);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
-    <div style={{ minHeight: '100vh', background: '#FAF6F0' }}>
-      <nav style={{ background: 'rgba(26,15,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, zIndex: 100 }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 24, color: '#C9975E' }}>☕</span>
-            <span style={{ color: 'white', fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>ERIC.CO</span>
-          </Link>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <Link href="/customer" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 14, fontWeight: 500 }}>Menu</Link>
-            <Link href="/customer" className="btn-primary" style={{ textDecoration: 'none', padding: '10px 24px', fontSize: 13, background: '#C9975E', color: '#1A0F0A' }}>Pesan Sekarang</Link>
-            <Link href="/login" className="btn-outline" style={{ textDecoration: 'none', padding: '10px 24px', fontSize: 13, color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.15)' }}>Masuk</Link>
-          </div>
+    <div style={{ minHeight: '100vh', background: '#FFF8F0' }}>
+      {/* Top Nav */}
+      <div style={{ background: 'white', borderBottom: '1px solid #F0E6DC', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50 }}>
+        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 22 }}>☕</span>
+          <span style={{ color: '#8B5E3C', fontWeight: 700, fontSize: 16 }}>ERIC.CO</span>
+        </Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={() => setShowScanner(true)} className="btn-secondary" style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+            📷 Scan
+          </button>
+          <button onClick={() => setShowCart(true)} style={{ position: 'relative', background: '#FFF8F0', border: '1.5px solid #E8D5C4', borderRadius: 10, padding: '8px 16px', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+            🛒
+            {cart.length > 0 && <span style={{ background: '#FF6B6B', color: 'white', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>{cart.reduce((s, c) => s + c.qty, 0)}</span>}
+            {cart.length > 0 && <span style={{ color: '#8B5E3C', fontWeight: 700, fontSize: 13 }}>Rp {totalCart.toLocaleString()}</span>}
+          </button>
         </div>
-      </nav>
+      </div>
 
-      <section style={{ background: 'linear-gradient(135deg, #1A0F0A 0%, #2C1810 40%, #4A3424 100%)', padding: '100px 24px 80px', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: '-50%', right: '-20%', width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle, rgba(201,151,94,0.08) 0%, transparent 70%)' }} />
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center', position: 'relative' }}>
-          <div className="animate__animated animate__fadeInLeft">
-            <span style={{ background: 'rgba(201,151,94,0.15)', color: '#C9975E', padding: '6px 16px', borderRadius: 100, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>PREMIUM CAFE EXPERIENCE</span>
-            <h1 style={{ fontSize: 56, color: 'white', margin: '24px 0 20px', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-1.5px' }}>
-              Where Every Sip <br/><span style={{ color: '#C9975E' }}>Tells a Story</span>
-            </h1>
-            <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.6)', lineHeight: 1.8, marginBottom: 36, maxWidth: 480 }}>
-              Pesan makanan dan minuman favorit Anda secara digital. Cepat, mudah, dan nyaman. Tersedia Dine In dan Take Away.
-            </p>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <Link href="/customer" className="btn-primary" style={{ textDecoration: 'none', padding: '16px 36px', fontSize: 15, background: '#C9975E', color: '#1A0F0A', borderRadius: 12, fontWeight: 700 }}>
-                🍽️ Lihat Menu
-              </Link>
-              <Link href="/customer?scan=1" className="btn-outline" style={{ textDecoration: 'none', padding: '16px 36px', fontSize: 15, color: 'rgba(255,255,255,0.8)', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 12 }}>
-                📷 Scan QR
-              </Link>
-            </div>
-            <div style={{ display: 'flex', gap: 40, marginTop: 48, paddingTop: 32, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <div><strong style={{ fontSize: 28, color: '#C9975E', display: 'block', letterSpacing: '-1px' }}>12+</strong><span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Menu Variasi</span></div>
-              <div><strong style={{ fontSize: 28, color: '#C9975E', display: 'block', letterSpacing: '-1px' }}>100+</strong><span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Pelanggan</span></div>
-              <div><strong style={{ fontSize: 28, color: '#C9975E', display: 'block', letterSpacing: '-1px' }}>5★</strong><span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Rating</span></div>
-            </div>
-          </div>
-          <div className="animate__animated animate__fadeInRight" style={{ position: 'relative' }}>
-            <div style={{ background: 'linear-gradient(135deg, rgba(201,151,94,0.1) 0%, rgba(201,151,94,0.05) 100%)', borderRadius: 24, padding: 48, display: 'flex', flexWrap: 'wrap', gap: 20, justifyContent: 'center', border: '1px solid rgba(201,151,94,0.15)' }}>
-              <span style={{ fontSize: 72 }}>☕</span>
-              <span style={{ fontSize: 72 }}>🍚</span>
-              <span style={{ fontSize: 72 }}>🥐</span>
-              <span style={{ fontSize: 72 }}>🍜</span>
-            </div>
-            <div style={{ position: 'absolute', bottom: -16, right: -16, background: '#C9975E', borderRadius: 16, padding: '16px 24px', color: '#1A0F0A', fontWeight: 700, fontSize: 14, boxShadow: '0 8px 32px rgba(201,151,94,0.3)' }}>
-              ⚡ Pesan Online Saja!
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section style={{ padding: '80px 24px', maxWidth: 1200, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 56 }}>
-          <span style={{ color: '#C9975E', fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>Mengapa ERIC.CO</span>
-          <h2 style={{ fontSize: 36, color: '#1A0F0A', marginTop: 12, fontWeight: 800, letterSpacing: '-1px' }}>
-            The Perfect <span style={{ color: '#C9975E' }}>Experience</span>
-          </h2>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px 80px' }}>
+        {/* Category Tabs */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
           {[
-            { icon: '🍽️', title: 'Pesan Mudah', desc: 'Lihat menu lengkap dengan gambar dan pesan langsung dari meja Anda.', color: 'rgba(201,151,94,0.1)' },
-            { icon: '💳', title: 'Bayar Fleksibel', desc: 'Tunai atau non-tunai, hitung kembalian otomatis.', color: 'rgba(76,175,80,0.1)' },
-            { icon: '📊', title: 'Dashboard Real-time', desc: 'Pantau penjualan dengan grafik interaktif dan filter tanggal.', color: 'rgba(66,165,245,0.1)' },
-            { icon: '📱', title: 'QR Code Meja', desc: 'Scan QR Code meja untuk pesan tanpa antri.', color: 'rgba(255,167,38,0.1)' },
-            { icon: '🔐', title: 'Aman & Terpercaya', desc: 'Login aman dengan enkripsi bcrypt untuk setiap role.', color: 'rgba(201,151,94,0.1)' },
-            { icon: '🖨️', title: 'Cetak Katalog', desc: 'Cetak katalog menu kapan saja dengan satu klik.', color: 'rgba(201,151,94,0.1)' },
-          ].map((item, i) => (
-            <div key={i} className="card animate__animated animate__fadeInUp" style={{ textAlign: 'center', padding: 36, animationDelay: `${i * 0.08}s`, border: '1px solid var(--border)' }}>
-              <div style={{ width: 72, height: 72, borderRadius: 20, background: item.color, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 32 }}>{item.icon}</div>
-              <h3 style={{ color: '#1A0F0A', marginBottom: 8, fontSize: 18, fontWeight: 700 }}>{item.title}</h3>
-              <p style={{ color: '#7A6B5F', fontSize: 14, lineHeight: 1.7 }}>{item.desc}</p>
-            </div>
+            { key: 'semua', label: 'Semua', icon: '📋', count: menu.length },
+            { key: 'makanan', label: 'Makanan', icon: '🍽️', count: countByKategori.makanan },
+            { key: 'minuman', label: 'Minuman', icon: '☕', count: countByKategori.minuman },
+          ].map(k => (
+            <button key={k.key} onClick={() => setKategori(k.key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 12,
+                border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+                background: kategori === k.key ? '#8B5E3C' : '#F5E6CC',
+                color: kategori === k.key ? 'white' : '#7A6856',
+                transition: 'all 0.2s ease',
+              }}>
+              <span>{k.icon}</span> {k.label}
+              <span style={{
+                background: kategori === k.key ? 'rgba(255,255,255,0.2)' : 'rgba(139,94,60,0.1)',
+                padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700
+              }}>{k.count}</span>
+            </button>
           ))}
         </div>
-      </section>
 
-      {menu.length > 0 && (
-        <section style={{ padding: '0 24px 80px', maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-            <div>
-              <span style={{ color: '#C9975E', fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>Menu Pilihan</span>
-              <h2 style={{ fontSize: 28, color: '#1A0F0A', fontWeight: 800, letterSpacing: '-0.5px' }}>Signature <span style={{ color: '#C9975E' }}>Dishes</span></h2>
-            </div>
-            <Link href="/customer" style={{ color: '#C9975E', textDecoration: 'none', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
-              Lihat Semua →
-            </Link>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20 }}>
-            {menu.map(item => (
-              <Link key={item.id} href="/customer" style={{ textDecoration: 'none' }}>
-                <div className="menu-card">
-                  <div style={{ height: 180, overflow: 'hidden' }}>
-                    <img src={item.gambar || ''} alt={item.nama} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  </div>
-                  <div style={{ padding: 18 }}>
-                    <span style={{ fontSize: 10, color: '#C9975E', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5 }}>{item.kategori}</span>
-                    <h3 style={{ color: '#1A0F0A', margin: '6px 0 4px', fontSize: 17, fontWeight: 700 }}>{item.nama}</h3>
-                    <div style={{ color: '#C9975E', fontWeight: 700, fontSize: 18 }}>Rp {parseInt(item.harga).toLocaleString()}</div>
-                  </div>
-                </div>
-              </Link>
+        {/* Menu Grid */}
+        {loading ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 20 }}>
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ height: 160, background: '#F0E6DC', animation: 'pulse 1.5s infinite' }} />
+                <div style={{ padding: 16 }}><div style={{ height: 14, width: '60%', background: '#F0E6DC', borderRadius: 4, marginBottom: 8 }} /><div style={{ height: 12, width: '40%', background: '#F0E6DC', borderRadius: 4 }} /></div>
+              </div>
             ))}
           </div>
-        </section>
-      )}
+        ) : filteredMenu.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 60, color: '#7A6856' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🍽️</div>
+            <p style={{ fontSize: 16, fontWeight: 600 }}>Tidak ada menu</p>
+            <p style={{ fontSize: 14 }}>Coba pilih kategori lain</p>
+          </div>
+        ) : (
+          <div className="menu-grid animate__animated animate__fadeIn">
+            {filteredMenu.map(item => (
+              <MenuCard key={item.id} item={item} onClick={addToCart} />
+            ))}
+          </div>
+        )}
 
-      <section style={{ background: 'linear-gradient(135deg, #1A0F0A 0%, #2C1810 100%)', padding: '80px 24px', textAlign: 'center' }}>
-        <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <span style={{ color: '#C9975E', fontSize: 48, display: 'block', marginBottom: 16 }}>☕</span>
-          <h2 style={{ color: 'white', fontSize: 36, fontWeight: 800, marginBottom: 16, letterSpacing: '-1px' }}>Siap Memesan?</h2>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 16, marginBottom: 36, lineHeight: 1.7 }}>
-            Klik tombol di bawah untuk melihat menu lengkap dan mulai pesan sekarang!
-          </p>
-          <Link href="/customer" className="btn-primary" style={{ textDecoration: 'none', padding: '16px 44px', fontSize: 16, background: '#C9975E', color: '#1A0F0A', borderRadius: 12, fontWeight: 700 }}>
-            🚀 Mulai Pesan
+        {/* QR Section */}
+        <div className="card" style={{ marginTop: 40, textAlign: 'center', padding: '24px 32px' }}>
+          <h3 style={{ marginBottom: 8, color: '#3D2B1F', fontSize: 18 }}>📲 Pesan Lewat QR Code</h3>
+          <p style={{ color: '#7A6856', fontSize: 14, marginBottom: 16 }}>Generate QR Code untuk setiap meja atau scan QR yang tersedia</p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+            {[1, 2, 3, 4, 5, 6].map(meja => (
+              <button key={meja} onClick={() => generateQR(meja)}
+                style={{
+                  width: 48, height: 48, borderRadius: 12, border: '2px solid #E8D5C4', cursor: 'pointer',
+                  background: noMeja === meja.toString() ? '#8B5E3C' : 'white',
+                  color: noMeja === meja.toString() ? 'white' : '#8B5E3C',
+                  fontWeight: 700, fontSize: 16, transition: 'all 0.2s ease',
+                }}>
+                {meja}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setShowScanner(true)} className="btn-primary" style={{ padding: '10px 24px', fontSize: 14 }}>
+            📷 Scan QR Meja
+          </button>
+        </div>
+      </div>
+
+      {/* QR Modal */}
+      <Modal show={showQR && qrDataUrl} onClose={() => setShowQR(false)}>
+        <div style={{ textAlign: 'center' }}>
+          <h3 style={{ marginBottom: 4 }}>QR Code Meja {noMeja}</h3>
+          <p style={{ color: '#7A6856', fontSize: 13, marginBottom: 16 }}>Arahkan kamera ke QR ini untuk memesan</p>
+          <img src={qrDataUrl} alt="QR Code" style={{ margin: '0 auto 16px', display: 'block', borderRadius: 12 }} />
+          <Link href={`/customer/pesan?meja=${noMeja}`}>
+              <button className="btn-primary" style={{ width: '100%', marginBottom: 8 }}>Pesan Langsung</button>
           </Link>
+          <button className="btn-secondary" onClick={() => setShowQR(false)} style={{ width: '100%' }}>Tutup</button>
         </div>
-      </section>
+      </Modal>
 
-      <footer style={{ background: '#1A0F0A', borderTop: '1px solid rgba(255,255,255,0.04)', padding: '48px 24px 24px' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 40 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <span style={{ color: '#C9975E', fontSize: 20 }}>☕</span>
-              <h3 style={{ color: 'white', fontSize: 18, fontWeight: 800 }}>ERIC.CO</h3>
-            </div>
-            <p style={{ fontSize: 13, lineHeight: 1.7, color: 'rgba(255,255,255,0.4)' }}>Aplikasi manajemen cafe modern untuk pemesanan digital, pembayaran, dan laporan real-time.</p>
-          </div>
-          <div>
-            <h4 style={{ color: 'white', fontSize: 14, marginBottom: 16, fontWeight: 600 }}>Fitur</h4>
-            <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 8, color: 'rgba(255,255,255,0.4)' }}>
-              <span>Pesan Online</span>
-              <span>QR Code Meja</span>
-              <span>Dashboard</span>
-              <span>Cetak Katalog</span>
-            </div>
-          </div>
-          <div>
-            <h4 style={{ color: 'white', fontSize: 14, marginBottom: 16, fontWeight: 600 }}>Kontak</h4>
-            <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 8, color: 'rgba(255,255,255,0.4)' }}>
-              <span>📧 info@eric.co.id</span>
-              <span>📞 (021) 1234-5678</span>
-              <span>📍 Jakarta, Indonesia</span>
-            </div>
-          </div>
-          <div>
-            <h4 style={{ color: 'white', fontSize: 14, marginBottom: 16, fontWeight: 600 }}>Jam Operasional</h4>
-            <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6, color: 'rgba(255,255,255,0.4)' }}>
-              <span>Senin - Jumat: 08:00 - 22:00</span>
-              <span>Sabtu: 09:00 - 23:00</span>
-              <span>Minggu: 10:00 - 21:00</span>
-            </div>
-          </div>
+      {/* Scanner Modal */}
+      <Modal show={showScanner} onClose={() => setShowScanner(false)} maxWidth="440px">
+        <h3 style={{ marginBottom: 16, textAlign: 'center' }}>📷 Scan QR Meja</h3>
+        <QRScanner onScan={(url) => { setShowScanner(false); window.location.href = url; }} onClose={() => setShowScanner(false)} />
+        <button className="btn-secondary" onClick={() => setShowScanner(false)} style={{ width: '100%', marginTop: 12 }}>Tutup</button>
+      </Modal>
+
+      {/* Cart Modal */}
+      <Modal show={showCart} onClose={() => setShowCart(false)} maxWidth="420px">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0 }}>🛒 Keranjang</h3>
+          {cart.length > 0 && <span style={{ fontSize: 13, color: '#7A6856' }}>{cart.reduce((s, c) => s + c.qty, 0)} item</span>}
         </div>
-        <div style={{ maxWidth: 1200, margin: '40px auto 0', paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.04)', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>
-          © 2026 ERIC.CO. All rights reserved.
-        </div>
-      </footer>
+        {cart.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '32px 0', color: '#7A6856' }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🛒</div>
+            <p style={{ fontWeight: 600 }}>Keranjang kosong</p>
+            <p style={{ fontSize: 13 }}>Klik menu untuk menambah</p>
+          </div>
+        ) : (
+          <>
+            <div style={{ maxHeight: 320, overflowY: 'auto', margin: '0 -8px', padding: '0 8px' }}>
+              {cart.map(item => (
+                <div key={item.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F0E6DC' }}>
+                  <img src={item.gambar || `/images/menu/${item.kategori === 'makanan' ? 'nasi-goreng' : 'kopi-hitam'}.svg`}
+                    alt={item.nama} style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{item.nama}</div>
+                    <div style={{ fontSize: 13, color: '#8B5E3C', fontWeight: 700 }}>Rp {parseInt(item.harga).toLocaleString()}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button onClick={() => removeFromCart(item.id)}
+                      style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: '#FF6B6B', color: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 16, lineHeight: 1 }}>−</button>
+                    <span style={{ fontWeight: 700, minWidth: 20, textAlign: 'center', fontSize: 14 }}>{item.qty}</span>
+                    <button onClick={() => addToCart(item)}
+                      style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: '#6BCB77', color: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 16, lineHeight: 1 }}>+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderTop: '2px solid #E8D5C4', marginTop: 8, fontSize: 18, fontWeight: 800 }}>
+              <span>Total</span>
+              <span style={{ color: '#8B5E3C' }}>Rp {totalCart.toLocaleString()}</span>
+            </div>
+            <Link href={`/customer/pesan?items=${encodeURIComponent(JSON.stringify(cart.map(c => ({ menu_id: c.id, qty: c.qty, nama: c.nama, harga: c.harga }))))}`}
+              style={{ textDecoration: 'none', display: 'block' }}>
+              <button className="btn-primary" style={{ width: '100%', padding: 12 }} disabled={cart.length === 0}>
+                🚀 Pesan Sekarang
+              </button>
+            </Link>
+          </>
+        )}
+        <button className="btn-secondary" onClick={() => setShowCart(false)} style={{ width: '100%', marginTop: 8 }}>Tutup</button>
+      </Modal>
     </div>
   );
 }
